@@ -92,6 +92,28 @@
             border-color: #22d3ee;
             box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
         }
+        #products-grid {
+            contain: layout style paint;
+        }
+        .skeleton {
+            background: linear-gradient(90deg, rgba(30,27,75,0.5) 25%, rgba(30,27,75,0.8) 50%, rgba(30,27,75,0.5) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .search-input:focus {
+            box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.4);
+        }
+        .category-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(139, 92, 246, 0.3) transparent;
+        }
+        .category-scroll::-webkit-scrollbar { height: 4px; }
+        .category-scroll::-webkit-scrollbar-track { background: transparent; }
+        .category-scroll::-webkit-scrollbar-thumb { background: rgba(139, 92, 246, 0.3); border-radius: 2px; }
     </style>
 </head>
 <body class="bg-dark-950 text-white min-h-screen font-sans antialiased">
@@ -122,8 +144,11 @@
             </div>
             <div class="flex items-center gap-3">
                 <span class="hidden sm:inline-block px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-                    5000+ Productos
+                    <span id="product-count">Cargando...</span>
                 </span>
+                <button onclick="scrollToProducts()" class="px-3 py-1.5 rounded-lg glassmorphism-light text-cyan-400 text-sm hover:bg-cyan-500/20 transition-all">
+                    🛒 Ver Todo
+                </button>
             </div>
         </nav>
     </header>
@@ -178,23 +203,58 @@
         <section id="productos" class="container mx-auto px-4 py-16">
             <div class="text-center mb-12">
                 <h2 class="text-3xl md:text-4xl font-bold mb-4">
-                    Productos <span class="text-cyan-400">Destacados</span>
+                    Catálogo <span class="text-cyan-400">Completo</span>
                 </h2>
                 <p class="text-gray-400 max-w-xl mx-auto">
-                    Todos los productos incluyen actualizaciones 2026 y acceso de por vida
+                    Explora los 5000 productos digitales premium con actualizaciones 2026 y acceso de por vida
                 </p>
             </div>
 
+            <!-- Search Bar -->
+            <div class="max-w-2xl mx-auto mb-8">
+                <div class="relative">
+                    <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <input 
+                        type="text" 
+                        id="search-input"
+                        placeholder="Buscar productos de IA, RAG, prompts, automatización..." 
+                        class="search-input w-full pl-12 pr-4 py-4 rounded-xl glassmorphism text-white placeholder-gray-500 focus:outline-none transition-all"
+                        oninput="handleSearch(this.value)"
+                    >
+                    <div id="search-stats" class="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-500"></div>
+                </div>
+            </div>
+
             <!-- Category Filter -->
-            <div class="flex flex-wrap justify-center gap-2 mb-8" id="category-filters">
-                <button onclick="filterProducts('all')" class="filter-btn active px-4 py-2 rounded-full text-sm font-medium bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 transition-all" data-category="all">
+            <div class="flex overflow-x-auto category-scroll gap-2 mb-8 pb-2 justify-start md:justify-center" id="category-filters">
+                <button onclick="filterProducts('all')" class="filter-btn active px-4 py-2 rounded-full text-sm font-medium bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 transition-all whitespace-nowrap" data-category="all">
                     Todos
                 </button>
             </div>
 
+            <!-- Loading State -->
+            <div id="loading-state" class="text-center py-20">
+                <div class="inline-flex items-center gap-3 px-6 py-3 rounded-xl glassmorphism">
+                    <svg class="animate-spin w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    <span class="text-gray-300">Cargando catálogo de 5000 productos...</span>
+                </div>
+            </div>
+
             <!-- Products Grid -->
-            <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                <!-- Products will be rendered here dynamically -->
+            <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 hidden">
+                <!-- Products rendered via virtual scrolling -->
+            </div>
+
+            <!-- Load More / Infinite Scroll Sentinel -->
+            <div id="scroll-sentinel" class="text-center py-8 hidden">
+                <button onclick="loadMore()" class="px-6 py-3 rounded-xl glassmorphism-light text-cyan-400 hover:bg-cyan-500/20 transition-all">
+                    Cargar más productos
+                </button>
             </div>
         </section>
     </main>
@@ -213,66 +273,168 @@
                 <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-cyan-400 to-purple-600 flex items-center justify-center">
                     <span class="text-2xl">Ω</span>
                 </div>
-                <h3 class="text-2xl font-gradient-text font-bold">Completar Compra</h3>
+                <h3 class="text-2xl font-bold gradient-text">Completar Compra</h3>
                 <p class="text-gray-400 text-sm mt-2">Acceso instantáneo tras el pago</p>
             </div>
 
             <!-- Product Summary -->
             <div id="modal-product-summary" class="glassmorphism-light rounded-xl p-4 mb-6">
                 <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm text-gray-400">Producto</p>
-                        <p id="modal-product-title" class="font-medium text-white text-sm truncate max-w-[200px]"></p>
+                    <div class="flex-1 mr-4">
+                        <p class="text-xs text-gray-400">Producto</p>
+                        <p id="modal-product-title" class="font-medium text-white text-sm truncate"></p>
+                        <p id="modal-product-category" class="text-xs text-cyan-400 mt-1"></p>
                     </div>
                     <div class="text-right">
-                        <p class="text-sm text-gray-400 line-through">$49.99</p>
-                        <p class="text-xl font-bold text-cyan-400">$6.99</p>
+                        <p class="text-sm text-gray-400 line-through" id="modal-original-price">$49.99</p>
+                        <p class="text-xl font-bold text-cyan-400" id="modal-price">$6.99</p>
                     </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-2" id="modal-product-uid"></p>
+            </div>
+
+            <!-- Customer Info -->
+            <div class="mb-6">
+                <p class="text-sm font-medium text-gray-300 mb-3">Tus datos</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="text" id="customer-name" placeholder="Nombre" class="px-3 py-2.5 rounded-lg bg-dark-900/50 border border-gray-700 text-white text-sm placeholder-gray-500 focus:border-cyan-500 focus:outline-none transition-all">
+                    <input type="email" id="customer-email" placeholder="Email" class="px-3 py-2.5 rounded-lg bg-dark-900/50 border border-gray-700 text-white text-sm placeholder-gray-500 focus:border-cyan-500 focus:outline-none transition-all">
                 </div>
             </div>
 
             <!-- Payment Methods -->
             <div class="mb-6">
                 <p class="text-sm font-medium text-gray-300 mb-3">Método de pago</p>
-                <div class="grid grid-cols-2 gap-3" id="payment-methods">
-                    <div class="payment-option cursor-pointer rounded-xl border border-gray-700 p-3 flex items-center gap-3 transition-all" data-method="vitawallet" onclick="selectPayment(this)">
+                <div class="space-y-2" id="payment-methods">
+                    <!-- Vitawallet - External Link -->
+                    <a id="pay-vitawallet" target="_blank" rel="noreferrer" class="payment-option cursor-pointer rounded-xl border border-gray-700 p-3 flex items-center gap-3 transition-all no-underline">
                         <div class="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center text-lg">💳</div>
-                        <span class="font-medium text-sm">Vitawallet</span>
+                        <div class="flex-1">
+                            <span class="font-medium text-sm block text-white">Vitawallet</span>
+                            <span class="text-xs text-gray-500">Tarjeta de crédito/débito - Global</span>
+                        </div>
+                        <span class="text-xs font-bold text-cyan-400 px-2 py-1 rounded bg-cyan-500/10">0%</span>
+                        <span class="text-gray-500">→</span>
+                    </a>
+                    <!-- Binance Pay - External Link -->
+                    <a id="pay-binance" target="_blank" rel="noreferrer" class="payment-option cursor-pointer rounded-xl border border-gray-700 p-3 flex items-center gap-3 transition-all no-underline">
+                        <div class="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center text-lg">₿</div>
+                        <div class="flex-1">
+                            <span class="font-medium text-sm block text-white">Binance Pay</span>
+                            <span class="text-xs text-gray-500">USDT, BTC, BNB, ETH - 0% comisión</span>
+                        </div>
+                        <span class="text-xs font-bold text-cyan-400 px-2 py-1 rounded bg-cyan-500/10">0%</span>
+                        <span class="text-gray-500">→</span>
+                    </a>
+                    <!-- Wallbit - External Link -->
+                    <a id="pay-wallbit" target="_blank" rel="noreferrer" class="payment-option cursor-pointer rounded-xl border border-gray-700 p-3 flex items-center gap-3 transition-all no-underline">
+                        <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-lg">�</div>
+                        <div class="flex-1">
+                            <span class="font-medium text-sm block text-white">Wallbit</span>
+                            <span class="text-xs text-gray-500">USA Bank Transfer / ACH</span>
+                        </div>
+                        <span class="text-xs font-bold text-cyan-400 px-2 py-1 rounded bg-cyan-500/10">0%</span>
+                        <span class="text-gray-500">→</span>
+                    </a>
+                    <!-- SEPA - Opens inline details -->
+                    <div class="payment-option cursor-pointer rounded-xl border border-gray-700 p-3 flex items-center gap-3 transition-all" data-method="sepa" onclick="selectPayment(this)">
+                        <div class="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-lg">🇪🇺</div>
+                        <div class="flex-1">
+                            <span class="font-medium text-sm block text-white">SEPA Europa</span>
+                            <span class="text-xs text-gray-500">Transferencia bancaria internacional</span>
+                        </div>
+                        <span class="text-xs font-bold text-cyan-400 px-2 py-1 rounded bg-cyan-500/10">0%</span>
+                        <span class="text-gray-500">→</span>
                     </div>
-                    <div class="payment-option cursor-pointer rounded-xl border border-gray-700 p-3 flex items-center gap-3 transition-all" data-method="binance" onclick="selectPayment(this)">
-                        <div class="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center text-lg">�</div>
-                        <span class="font-medium text-sm">Binance</span>
+                    <!-- Crypto Direct - Opens inline details -->
+                    <div class="payment-option cursor-pointer rounded-xl border border-gray-700 p-3 flex items-center gap-3 transition-all" data-method="crypto" onclick="selectPayment(this)">
+                        <div class="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center text-lg">💰</div>
+                        <div class="flex-1">
+                            <span class="font-medium text-sm block text-white">Crypto Directo</span>
+                            <span class="text-xs text-gray-500">BTC / ETH / USDT a wallet</span>
+                        </div>
+                        <span class="text-xs font-bold text-cyan-400 px-2 py-1 rounded bg-cyan-500/10">0%</span>
+                        <span class="text-gray-500">→</span>
                     </div>
-                    <div class="payment-option cursor-pointer rounded-xl border border-gray-700 p-3 flex items-center gap-3 transition-all" data-method="wallbit" onclick="selectPayment(this)">
-                        <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-lg">🏦</div>
-                        <span class="font-medium text-sm">Wallbit</span>
-                    </div>
-                    <div class="payment-option cursor-pointer rounded-xl border border-gray-700 p-3 flex items-center gap-3 transition-all" data-method="coinbase" onclick="selectPayment(this)">
-                        <div class="w-10 h-10 rounded-lg bg-blue-600/20 flex items-center justify-center text-lg">�</div>
-                        <span class="font-medium text-sm">Coinbase</span>
-                    </div>
-                    <div class="payment-option cursor-pointer rounded-xl border border-gray-700 p-3 flex items-center gap-3 transition-all" data-method="openpayd" onclick="selectPayment(this)">
-                        <div class="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center text-lg">🌐</div>
-                        <span class="font-medium text-sm">OpenPayd</span>
-                    </div>
-                    <div class="payment-option cursor-pointer rounded-xl border border-gray-700 p-3 flex items-center gap-3 transition-all" data-method="leadbank" onclick="selectPayment(this)">
-                        <div class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center text-lg">🏛️</div>
-                        <span class="font-medium text-sm">Lead Bank</span>
-                    </div>
-                    <div class="payment-option cursor-pointer rounded-xl border border-gray-700 p-3 flex items-center gap-3 transition-all col-span-2" data-method="bolivia" onclick="selectPayment(this)">
+                    <!-- Bolivia - Opens inline details -->
+                    <div class="payment-option cursor-pointer rounded-xl border border-gray-700 p-3 flex items-center gap-3 transition-all" data-method="bolivia" onclick="selectPayment(this)">
                         <div class="w-10 h-10 rounded-lg bg-green-600/20 flex items-center justify-center text-lg">🇧🇴</div>
-                        <span class="font-medium text-sm">Bolivia - Transferencia Local</span>
+                        <div class="flex-1">
+                            <span class="font-medium text-sm block text-white">Banco Bolivia</span>
+                            <span class="text-xs text-gray-500">Banco Mercantil Santa Cruz - Transfer</span>
+                        </div>
+                        <span class="text-xs font-bold text-cyan-400 px-2 py-1 rounded bg-cyan-500/10">0%</span>
+                        <span class="text-gray-500">→</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Confirm Button -->
-            <button id="confirm-btn" onclick="confirmPurchase()" class="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-semibold btn-glow transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                Pagar $6.99 Ahora
+            <!-- Inline Payment Details (shown when method selected) -->
+            <div id="payment-details" class="hidden mb-6">
+                <!-- SEPA -->
+                <div id="details-sepa" class="hidden glassmorphism-light rounded-xl p-4">
+                    <p class="text-xs text-gray-400 mb-2">Datos bancarios SEPA</p>
+                    <div class="space-y-2 text-xs text-gray-300 bg-dark-900/50 rounded-lg p-3">
+                        <p><span class="text-gray-500">Titular:</span> Diego Edgardo Cortez Yañez</p>
+                        <p class="flex items-center gap-2"><span class="text-gray-500 shrink-0">IBAN:</span> <span class="font-mono text-white select-all">MT12CFTE28004000000000005456093</span> <button onclick="copyToClipboard('MT12CFTE28004000000000005456093', this)" class="shrink-0 px-2 py-1 rounded bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-colors text-xs">📋</button></p>
+                        <p class="flex items-center gap-2"><span class="text-gray-500 shrink-0">BIC:</span> <span class="font-mono text-white select-all">CFTEMTM1XXX</span> <button onclick="copyToClipboard('CFTEMTM1XXX', this)" class="shrink-0 px-2 py-1 rounded bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-colors text-xs">📋</button></p>
+                        <p><span class="text-gray-500">Importe:</span> 6.99 EUR</p>
+                        <p><span class="text-gray-500">Referencia:</span> <span id="sepa-reference" class="font-mono">APOLLO-XXXX</span></p>
+                    </div>
+                    <p class="text-xs text-yellow-400 mt-2">📧 Envía comprobante a soporte@apollo-omega.com — acceso en 24h</p>
+                    <a id="pay-sepa-online" target="_blank" rel="noreferrer" class="mt-3 block text-center py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-medium hover:opacity-90 transition-opacity no-underline">
+                        Pagar Online con Vitawallet →
+                    </a>
+                </div>
+                <!-- Crypto -->
+                <div id="details-crypto" class="hidden glassmorphism-light rounded-xl p-4">
+                    <p class="text-xs text-gray-400 mb-2">Dirección de pago Crypto — envía 6.99 USD</p>
+                    <div class="space-y-3">
+                        <div class="bg-orange-500/10 rounded-lg p-3">
+                            <p class="text-xs text-gray-400 mb-1">� BTC (Bitcoin)</p>
+                            <p class="text-xs text-white font-mono break-all select-all">bc1qjjgsx3lwa0wz59l89htcpr28j5s7dtmv99fmw0</p>
+                            <button onclick="copyToClipboard('bc1qjjgsx3lwa0wz59l89htcpr28j5s7dtmv99fmw0', this)" class="mt-2 px-3 py-1 rounded bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-colors text-xs">📋 Copiar</button>
+                            <a href="https://pay.binance.com/en/checkout/6.99?product=APOLLO&crypto=BTC&address=bc1qjjgsx3lwa0wz59l89htcpr28j5s7dtmv99fmw0&ref=APOLLO&type=crypto" target="_blank" rel="noreferrer" class="mt-2 inline-block px-3 py-1 rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors text-xs no-underline">Pagar con Binance →</a>
+                        </div>
+                        <div class="bg-blue-500/10 rounded-lg p-3">
+                            <p class="text-xs text-gray-400 mb-1">🔵 ETH (Ethereum)</p>
+                            <p class="text-xs text-white font-mono break-all select-all">0x2F4bc6f77719AB99BCd6a9b553729bB96C9B8c22</p>
+                            <button onclick="copyToClipboard('0x2F4bc6f77719AB99BCd6a9b553729bB96C9B8c22', this)" class="mt-2 px-3 py-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors text-xs">📋 Copiar</button>
+                            <a href="https://pay.binance.com/en/checkout/6.99?product=APOLLO&crypto=ETH&address=0x2F4bc6f77719AB99BCd6a9b553729bB96C9B8c22&ref=APOLLO&type=crypto" target="_blank" rel="noreferrer" class="mt-2 inline-block px-3 py-1 rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors text-xs no-underline">Pagar con Binance →</a>
+                        </div>
+                        <div class="bg-green-500/10 rounded-lg p-3">
+                            <p class="text-xs text-gray-400 mb-1">� USDT (ERC20/BEP20)</p>
+                            <p class="text-xs text-white font-mono break-all select-all">0xeBe965EFe1ab53d2da915134d72e5BdBd5E3C053</p>
+                            <button onclick="copyToClipboard('0xeBe965EFe1ab53d2da915134d72e5BdBd5E3C053', this)" class="mt-2 px-3 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors text-xs">📋 Copiar</button>
+                            <a href="https://pay.binance.com/en/checkout/6.99?product=APOLLO&crypto=USDT&address=0xeBe965EFe1ab53d2da915134d72e5BdBd5E3C053&ref=APOLLO&type=crypto" target="_blank" rel="noreferrer" class="mt-2 inline-block px-3 py-1 rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors text-xs no-underline">Pagar con Binance →</a>
+                        </div>
+                    </div>
+                    <p class="text-xs text-yellow-400 mt-2">⚠️ Envía la cantidad exacta en la red correcta. Acceso automático tras 1 confirmación.</p>
+                </div>
+                <!-- Bolivia -->
+                <div id="details-bolivia" class="hidden glassmorphism-light rounded-xl p-4">
+                    <p class="text-xs text-gray-400 mb-2">Transferencia Banco Bolivia (BMSC)</p>
+                    <div class="space-y-2 text-xs text-gray-300 bg-dark-900/50 rounded-lg p-3">
+                        <p><span class="text-gray-500">Banco:</span> Banco Mercantil Santa Cruz</p>
+                        <p><span class="text-gray-500">Titular:</span> Diego Edgardo Cortez Yañez</p>
+                        <p class="flex items-center gap-2"><span class="text-gray-500 shrink-0">N° Cuenta:</span> <span class="font-mono text-white select-all">4069474188</span> <button onclick="copyToClipboard('4069474188', this)" class="shrink-0 px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors text-xs">📋</button></p>
+                        <p><span class="text-gray-500">CI:</span> 5808841 TJ</p>
+                        <p><span class="text-gray-500">Importe:</span> 48.28 BOB (6.99 USD × 6.91)</p>
+                    </div>
+                    <p class="text-xs text-yellow-400 mt-2">📧 Envía comprobante a soporte@apollo-omega.com — acceso en 24h</p>
+                    <a id="pay-bolivia-online" target="_blank" rel="noreferrer" class="mt-3 block text-center py-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium hover:opacity-90 transition-opacity no-underline">
+                        Pagar Online con Vitawallet →
+                    </a>
+                </div>
+            </div>
+
+            <!-- Hidden confirm button (kept for compatibility, payments open externally) -->
+            <button id="confirm-btn" onclick="confirmPurchase()" class="hidden">
+                <span id="confirm-amount"></span>
             </button>
 
             <p class="text-center text-xs text-gray-500 mt-4">
-                � Pago seguro | Acceso instantáneo | Garantía de devolución 7 días
+                🔒 Pago seguro | Acceso instantáneo | Garantía de devolución 7 días
             </p>
         </div>
     </div>
@@ -283,7 +445,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div>
                     <div class="flex items-center gap-3 mb-4">
-                        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-c0 to-purple-600 flex items-center justify-center font-bold text-lg">
+                        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-400 to-purple-600 flex items-center justify-center font-bold text-lg">
                             Ω
                         </div>
                         <span class="text-xl font-bold gradient-text">APOLLO Ω</span>
@@ -305,8 +467,8 @@
                     <h4 class="font-semibold text-white mb-4">Contacto</h4>
                     <ul class="space-y-2 text-sm text-gray-400">
                         <li>📧 soporte@apollo-omega.com</li>
-                        <li>� Telegram: @apollomega</li>
-                        <li>� www.apollo-omega.com</li>
+                        <li>📱 Telegram: @apollomega</li>
+                        <li>🌐 www.apollo-omega.com</li>
                     </ul>
                 </div>
             </div>
@@ -317,11 +479,20 @@
     </footer>
 
     <script>
-    const PRODUCTS = [{"uid": "a47350dc-e302-4d5d-bb23-38a8751e6550", "base_id": "prod_4f81582a074d", "title": "RAG System Para Desarrolladores: Respuestas Precisas En 90 Seg", "category": "rag-systems", "description": "💰 Por solo $6.99 obtienes lo que normalmente cuesta $200+. Esta oferta NO se repetirá. Acceso de por vida a Contenido con actualizaciones 2026 incluidas.", "source_url": "", "billing": {"descriptor": "YinAITechYang RAG Systems", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 16:05", "ecosystem": "YinAITechYang", "level": "starter", "price": 6.99, "language": "en", "avatar_color": "gold", "formats": [{"type": "audio", "duration": "15min"}, {"type": "video", "duration": "1min"}, {"type": "ebook", "pages": 30}], "version": "v2026.6", "created_at": "2026-06-25T16:05:37", "security": {"integrity_hash": "822c7c63ac40493c962289d80673202926a76ea1beae5a08b4d5c60d572285d8", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["rag", "vector-db", "retrieval", "knowledge-base", "augmented", "exclusive", "viral", "2026", "lifetime", "ai"], "trend_2026": "RAG Systems"}, {"uid": "08e9a39e-4462-4ff8-b43d-abe85cc3b761", "base_id": "prod_ade6190ed527", "title": "El Sistema Que Convierte Texto En Análisis Con IA Multimodal", "category": "multimodal-ai", "description": "🎁 BONUS INCLUIDO: Además del producto principal, recibes 10 extras valorados en $200+. Oferta limitada. Agota stock.", "source_url": "", "billing": {"descriptor": "YinAITechYang Multimodal AI", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 02:46", "ecosystem": "YinAITechYang", "level": "advanced", "price": 6.99, "language": "en", "avatar_color": "pink", "formats": [{"type": "ebook", "pages": 60}, {"type": "audio", "duration": "20min"}, {"type": "video", "duration": "5min"}], "version": "v2026.6", "created_at": "2026-06-25T02:46:07", "security": {"integrity_hash": "acd5915ab3e5db694550c00f145c0055366c3ad906fa0ccaa5805e4d835d84c0", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["generation", "vision", "multimodal", "text-image", "instant-access", "viral", "guaranteed", "audio", "2026", "ai"], "trend_2026": "Multimodal AI"}, {"uid": "54efcc6b-0af0-4af2-bebe-504a6a8aa052", "base_id": "prod_417d2da7952c", "title": "DeFi 2.0 2026: Genera $20000/mes Con Liquidity Mining", "category": "defi-2.0", "description": "🔴 URGENTE: El precio de $6.99 es solo por lanzamiento. Próxima semana sube a $49.99. Asegura tu acceso ahora.", "source_url": "", "billing": {"descriptor": "YinAITechYang DeFi 2.0", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 12:13", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "en", "avatar_color": "cyan", "formats": [{"type": "video", "duration": "90min"}, {"type": "ebook", "pages": 80}, {"type": "templates", "count": 15}], "version": "v2026.6", "created_at": "2026-06-25T12:13:53", "security": {"integrity_hash": "1aa38978b447085930b63c53b00d9f98c89bf97964de37a0e8cc7f51960bdffc", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["yield", "viral", "blockchain", "crypto", "digital", "defi", "farming", "2026", "web3", "limited"], "trend_2026": "DeFi 2.0"}, {"uid": "72527f35-89aa-4fe6-8e67-7c1ae8a8d708", "base_id": "prod_b8663d79173e", "title": "El Pipeline LangChain Que Genera 0% Manual Work En 300 Seg", "category": "langchain-automations", "description": "🔴 URGENTE: El precio de $6.99 es solo por lanzamiento. Próxima semana sube a $49.99. Asegura tu acceso ahora.", "source_url": "", "billing": {"descriptor": "YinAITechYang LangChain Automations", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 00:27", "ecosystem": "YinAITechYang", "level": "ready", "price": 6.99, "language": "en", "avatar_color": "orange", "formats": [{"type": "audio", "duration": "15min"}, {"type": "video", "duration": "1min"}, {"type": "ebook", "pages": 30}], "version": "v2026.6", "created_at": "2026-06-25T00:27:42", "security": {"integrity_hash": "8310be123f1b16065db0fc9a81d5618c308507d527d28c1d810cbe3e3ab5235e", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["python", "framework", "premium", "langchain", "automation", "llm", "2026", "ai", "trending"], "trend_2026": "LangChain Automations"}, {"uid": "163a882d-8b37-4bf7-a8e2-b476aaa90c49", "base_id": "prod_7ded2839b5d5", "title": "El Sistema LangChain Para Emprendedores: 1000 Pipelines Incluidos", "category": "langchain-automations", "description": "🎯 Si eres Startups y estás cansado de Ver competidores ganando más, esto cambia todo. El sistema automatiza Comunicación para que te enfoques en lo que realmente importa: Campañas.", "source_url": "", "billing": {"descriptor": "YinAITechYang LangChain Automations", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 13:18", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "es", "avatar_color": "purple", "formats": [{"type": "video", "duration": "90min"}, {"type": "ebook", "pages": 80}, {"type": "templates", "count": 15}], "version": "v2026.6", "created_at": "2026-06-25T13:18:54", "security": {"integrity_hash": "5c6d2c82a9f6d2deb1b2c48c1515d8f83d94d661d9122bcca87b398c3d47f5f5", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["python", "framework", "viral", "guaranteed", "langchain", "automation", "llm", "2026", "ai", "trending"], "trend_2026": "LangChain Automations"}, {"uid": "8d0f6672-b592-46fa-8297-480cba124f70", "base_id": "prod_8dd3136279a2", "title": "El Agente Que Diseña: Cómo Emprendedores Lograron Ventas", "category": "ai-agents", "description": "💡 La verdad que Creadores exitosos no comparten: Tráfico es más fácil de lo que crees. Este sistema lo demuestra paso a paso.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Agents", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 18:49", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "es", "avatar_color": "cyan", "formats": [{"type": "templates", "count": 50}, {"type": "video", "duration": "30min"}, {"type": "checklist", "pages": 10}], "version": "v2026.6", "created_at": "2026-06-25T18:49:13", "security": {"integrity_hash": "b6605146c6d781dab1a88af90da0adf53bb974c0b3ddb314722426a6408bc534", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["chatbot", "2026", "instant-access", "multi-agent", "guaranteed", "agents", "automation", "agent", "autonomous", "orchestration", "ai", "trending"], "trend_2026": "AI Agents"}, {"uid": "ea590a48-dc76-4539-9a4f-d7a96d735d0c", "base_id": "prod_836640949c83", "title": "AI Automation Para Freelancers: Tu Trabajo En 50% Menos Tiempo", "category": "ai-automation", "description": "🔴 URGENTE: El precio de $6.99 es solo por lanzamiento. Próxima semana sube a $49.99. Asegura tu acceso ahora.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Automation", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 03:11", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "en", "avatar_color": "white", "formats": [{"type": "video", "duration": "60min"}, {"type": "templates", "count": 25}, {"type": "guide", "pages": 40}], "version": "v2026.6", "created_at": "2026-06-25T03:11:52", "security": {"integrity_hash": "75e5652d8df4a8a210a7a0646316726117dfd2e03d2d94e32176604501003604", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["rpa", "productivity", "viral", "guaranteed", "digital", "automation", "efficiency", "workflow", "2026", "ai"], "trend_2026": "AI Automation"}, {"uid": "47512dcb-7e79-4353-8907-ac4a586ee4b5", "base_id": "prod_26b0c3608291", "title": "El Kit De LangChain 2026: 5000 Guías + 100000 Templates", "category": "langchain-automations", "description": "🚀 De 0 a Alto en 10 Minutos. Eso es lo que prometemos. Y lo cumplimos. Mira los testimonios de 25+ clientes satisfechos.", "source_url": "", "billing": {"descriptor": "YinAITechYang LangChain Automations", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 10:57", "ecosystem": "YinAITechYang", "level": "ready", "price": 6.99, "language": "es", "avatar_color": "cyan", "formats": [{"type": "video", "duration": "90min"}, {"type": "ebook", "pages": 80}, {"type": "templates", "count": 15}], "version": "v2026.6", "created_at": "2026-06-25T10:57:49", "security": {"integrity_hash": "2388797d5af2c6232f6dc97f2245ab37f5fedd32ffacebddd4e3c7258761e82c", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["exclusive", "python", "framework", "viral", "langchain", "automation", "llm", "2026", "ai", "limited"], "trend_2026": "LangChain Automations"}, {"uid": "f61dd03e-2156-417b-abe0-ef50ccd571c6", "base_id": "prod_d0e0f918604b", "title": "El Kit De Multimodal AI 2026: 200 Plantillas + 1000 Guías", "category": "multimodal-ai", "description": "🎁 BONUS INCLUIDO: Además del producto principal, recibes 5000 extras valorados en $200+. Oferta limitada. Agota stock.", "source_url": "", "billing": {"descriptor": "YinAITechYang Multimodal AI", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 11:16", "ecosystem": "YinAITechYang", "level": "ready", "price": 6.99, "language": "es", "avatar_color": "purple", "formats": [{"type": "templates", "count": 50}, {"type": "video", "duration": "30min"}, {"type": "checklist", "pages": 10}], "version": "v2026.6", "created_at": "2026-06-25T11:16:46", "security": {"integrity_hash": "7644f81b92857e5adb07babf93d15d95cc6e35c4dbe1d26d760b6b3cbd746f12", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["generation", "vision", "multimodal", "exclusive", "text-image", "digital", "audio", "2026", "ai", "trending"], "trend_2026": "Multimodal AI"}, {"uid": "4edbebbc-0e69-4474-b5e9-418dcb32f73c", "base_id": "prod_c470f99c9062", "title": "SaaS Launch Kit 2026: Template + Landing + Email + 5x Velocidad", "category": "saas-templates", "description": "⚡ COPY DE ALTO CONVERSIÓN: ¿Qué pasaría si pudieras Ingresos sin Presupuesto limitado? Ahora puedes. Este producto digital es tu atajo hacia 1M De Views.", "source_url": "", "billing": {"descriptor": "YinAITechYang SaaS Templates", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 21:46", "ecosystem": "YinAITechYang", "level": "starter", "price": 6.99, "language": "en", "avatar_color": "orange", "formats": [{"type": "audio", "duration": "45min"}, {"type": "ebook", "pages": 100}, {"type": "video", "duration": "10min"}], "version": "v2026.6", "created_at": "2026-06-25T21:46:55", "security": {"integrity_hash": "ad369ab90167ab4584857ac06227a4eede5a2f0b4b8415f266904a9e5a9b3943", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["boilerplate", "startup", "saas", "starter-kit", "exclusive", "nextjs", "guaranteed", "mvp", "digital", "2026", "template"], "trend_2026": "SaaS Templates"}, {"uid": "1b247625-257d-4655-8d74-ac44c09efcb8", "base_id": "prod_4ff625b39c17", "title": "LangChain Multi-Agent: 5000 Agentes Coordinados", "category": "langchain-automations", "description": "⏰ ALERTA: Solo quedan 200 copias a este precio. Después sube a $49.99. Garantía de devolución 30 días o preguntas. Cero riesgo.", "source_url": "", "billing": {"descriptor": "YinAITechYang LangChain Automations", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 04:54", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "es", "avatar_color": "red", "formats": [{"type": "audio", "duration": "15min"}, {"type": "video", "duration": "1min"}, {"type": "ebook", "pages": 30}], "version": "v2026.6", "created_at": "2026-06-25T04:54:59", "security": {"integrity_hash": "22e712f8124adacda950afc6ddddaf8db4b9370418979065d7807a69a47cbc62", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["instant-access", "python", "framework", "guaranteed", "langchain", "automation", "llm", "2026", "ai"], "trend_2026": "LangChain Automations"}, {"uid": "13e6c3dd-5083-4bb5-afac-5e0a91f551cd", "base_id": "prod_99e52c9cbec0", "title": "El Framework De Bots 2026: Construye Tu Máquina De $2500", "category": "crypto-trading-bots", "description": "⚡ COPY DE ALTO CONVERSIÓN: ¿Qué pasaría si pudieras Leads sin No tener tiempo? Ahora puedes. Este producto digital es tu atajo hacia 100 Clientes.", "source_url": "", "billing": {"descriptor": "YinAITechYang Crypto Trading Bots", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 15:23", "ecosystem": "YinAITechYang", "level": "ready", "price": 6.99, "language": "es", "avatar_color": "gold", "formats": [{"type": "ebook", "pages": 75}, {"type": "video", "duration": "20min"}, {"type": "checklist", "pages": 5}], "version": "v2026.6", "created_at": "2026-06-25T15:23:21", "security": {"integrity_hash": "5a697b9cff1c54ebc258d78caa476b3c7d48f3b7ed6650d8961666e6b7fb8250", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["bot", "finance", "ethereum", "trading", "viral", "guaranteed", "crypto", "automation", "defi", "bitcoin", "2026", "lifetime"], "trend_2026": "Crypto Trading Bots"}, {"uid": "ad2f6214-c841-4365-9187-a5df315d943e", "base_id": "prod_a0dcea73cf44", "title": "Automatización Inteligente: 100% Uptime Con Agentes IA En 2026", "category": "ai-automation", "description": "⚡ ATENCIÓN: Este producto digital premium te da acceso inmediato al sistema que Creadores están usando para Tráfico. Sin complicaciones. Sin curva de aprendizaje. Resultados en 24 Horas.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Automation", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 08:44", "ecosystem": "YinAITechYang", "level": "advanced", "price": 6.99, "language": "en", "avatar_color": "purple", "formats": [{"type": "audio", "duration": "15min"}, {"type": "video", "duration": "1min"}, {"type": "ebook", "pages": 30}], "version": "v2026.6", "created_at": "2026-06-25T08:44:54", "security": {"integrity_hash": "2a27125483ae4ce237091103d946aa3f37fdc47fae6549caa544ee038838966c", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["rpa", "productivity", "viral", "guaranteed", "premium", "automation", "efficiency", "workflow", "2026", "ai"], "trend_2026": "AI Automation"}, {"uid": "05c86e07-996c-4666-9970-54b50f7b9b4a", "base_id": "prod_6b825de9d6c1", "title": "Claude Code Mastery: De $100 A 10x Velocidad En 14 Días", "category": "claude-code-workflows", "description": "💎 Producto premium con acceso inmediato. Incluye 50 plantillas, 50 guías, y soporte prioritario. Valor real: $500+. Tu precio hoy: $6.99.", "source_url": "", "billing": {"descriptor": "YinAITechYang Claude Code Workflows", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 06:07", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "es", "avatar_color": "gold", "formats": [{"type": "ebook", "pages": 75}, {"type": "video", "duration": "20min"}, {"type": "checklist", "pages": 5}], "version": "v2026.6", "created_at": "2026-06-25T06:07:21", "security": {"integrity_hash": "ea5232a102dc46e02ac60844fa345dcd536162d3918be2f1d5de11a110a58d46", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["ai-coding", "claude", "viral", "anthropic", "development", "coding", "digital", "workflow", "2026"], "trend_2026": "Claude Code Workflows"}, {"uid": "1790ccd0-ecbe-4f9d-a655-0a9d797fe5ca", "base_id": "prod_cef1d34732bb", "title": "Prompt Engineering Mastery: De Novato A Arquitecto De Prompts En 24 Horas", "category": "prompt-engineering", "description": "✨ Resultados garantizados o te devolvemos el dinero. Así de seguros estamos de que este sistema transformará tu Real Estate en 1 Hora.", "source_url": "", "billing": {"descriptor": "YinAITechYang Prompt Engineering", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 10:47", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "en", "avatar_color": "gold", "formats": [{"type": "video", "duration": "60min"}, {"type": "templates", "count": 25}, {"type": "guide", "pages": 40}], "version": "v2026.6", "created_at": "2026-06-25T10:47:35", "security": {"integrity_hash": "9f09afff1a53201ca8dbcfe8a9e8ab4ccbe376c3116344ba4b2d4af6100e2cbc", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["prompts", "templates", "claude", "instant-access", "viral", "prompt-engineering", "gpt-5", "ai-writing", "llm", "2026"], "trend_2026": "Prompt Engineering"}, {"uid": "b5555661-bd22-4c79-bc82-d6529c02403b", "base_id": "prod_befde6a46108", "title": "Claude Code Mastery: De Bajo A 500 Leads En 7 Días", "category": "claude-code-workflows", "description": "⏰ ALERTA: Solo quedan 200 copias a este precio. Después sube a $49.99. Garantía de devolución 30 días o preguntas. Cero riesgo.", "source_url": "", "billing": {"descriptor": "YinAITechYang Claude Code Workflows", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 18:19", "ecosystem": "YinAITechYang", "level": "starter", "price": 6.99, "language": "es", "avatar_color": "cyan", "formats": [{"type": "video", "duration": "45min"}, {"type": "ebook", "pages": 50}, {"type": "audio", "duration": "30min"}], "version": "v2026.6", "created_at": "2026-06-25T18:19:59", "security": {"integrity_hash": "33e7c57f4c4ad59cdaedff5617acc598214d080746e30ead1071771d3bef83f5", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["ai-coding", "claude", "viral", "anthropic", "development", "coding", "workflow", "2026", "premium"], "trend_2026": "Claude Code Workflows"}, {"uid": "f707ac38-3509-462c-b313-36670671fddd", "base_id": "prod_faaf722ac76e", "title": "El Framework De Coding IA Que Frank Kern Recomienda", "category": "ai-coding-assistants", "description": "🎯 Si eres Marketers y estás cansado de No tener tiempo, esto cambia todo. El sistema automatiza Contenido para que te enfoques en lo que realmente importa: Tráfico.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Coding Assistants", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 00:39", "ecosystem": "YinAITechYang", "level": "starter", "price": 6.99, "language": "en", "avatar_color": "yellow", "formats": [{"type": "audio", "duration": "15min"}, {"type": "video", "duration": "1min"}, {"type": "ebook", "pages": 30}], "version": "v2026.6", "created_at": "2026-06-25T00:39:13", "security": {"integrity_hash": "637211e2fea232d03f9a40cfa8b0c9ff0a797ca6bc266d11d29e7a3b48ed2efd", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["copilot", "instant-access", "development", "coding", "digital", "assistant", "2026", "programming", "ai"], "trend_2026": "AI Coding Assistants"}, {"uid": "b2428fa8-4cc9-4617-8d95-0bae88fd21a4", "base_id": "prod_cb90023ef3d3", "title": "Agente IA De HealthTech: La Máquina De Engagement Que Funciona Mientras Duermes", "category": "ai-agents", "description": "🧠 El método secreto que Russell Brunson reveló para Ingresos. Ahora empaquetado en un sistema plug-and-play que cualquiera puede usar. Sin experiencia previa requerida.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Agents", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 04:26", "ecosystem": "YinAITechYang", "level": "ready", "price": 6.99, "language": "es", "avatar_color": "purple", "formats": [{"type": "audio", "duration": "45min"}, {"type": "ebook", "pages": 100}, {"type": "video", "duration": "10min"}], "version": "v2026.6", "created_at": "2026-06-25T04:26:19", "security": {"integrity_hash": "7bd6959ac152f62989af93a66103f2d94fae3dfb0ce29f76723abc3dafa61502", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["chatbot", "2026", "exclusive", "multi-agent", "guaranteed", "agents", "lifetime", "automation", "agent", "autonomous", "orchestration", "ai"], "trend_2026": "AI Agents"}, {"uid": "921cc7d5-4fa1-4cfc-a4d9-5877447b8ca1", "base_id": "prod_4dde1343ab08", "title": "Agente IA Autónomo Para HR: Gana Productividad Sin Tocar Un Solo Clic", "category": "ai-agents", "description": "💰 Por solo $6.99 obtienes lo que normalmente cuesta $200+. Esta oferta NO se repetirá. Acceso de por vida a Reportes con actualizaciones 2026 incluidas.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Agents", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 01:09", "ecosystem": "YinAITechYang", "level": "ready", "price": 6.99, "language": "es", "avatar_color": "blue", "formats": [{"type": "ebook", "pages": 75}, {"type": "video", "duration": "20min"}, {"type": "checklist", "pages": 5}], "version": "v2026.6", "created_at": "2026-06-25T01:09:44", "security": {"integrity_hash": "61ac7951b971c2119a3a7d4c8f37bde9c5bff23c7da904984b172d529c202cfc", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["chatbot", "2026", "multi-agent", "lifetime", "agents", "automation", "agent", "autonomous", "orchestration", "ai", "trending"], "trend_2026": "AI Agents"}, {"uid": "89ec3a39-6c7f-4d93-9560-c30485fbf385", "base_id": "prod_c5a90b72ca78", "title": "El Sistema No-Code Que 500+ Empresas Usan Para Reportes", "category": "no-code-ai", "description": "💎 Producto premium con acceso inmediato. Incluye 1000 plantillas, 1000 guías, y soporte prioritario. Valor real: $500+. Tu precio hoy: $6.99.", "source_url": "", "billing": {"descriptor": "YinAITechYang No-Code AI", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 19:02", "ecosystem": "YinAITechYang", "level": "starter", "price": 6.99, "language": "en", "avatar_color": "pink", "formats": [{"type": "ebook", "pages": 60}, {"type": "audio", "duration": "20min"}, {"type": "video", "duration": "5min"}], "version": "v2026.6", "created_at": "2026-06-25T19:02:38", "security": {"integrity_hash": "21ac45cc7577f7ead4d66fb65b1c112dfb8820be701a4375a95db6700abf85d0", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["make", "no-code", "instant-access", "viral", "automation", "visual-builder", "2026", "zapier", "ai", "bubble"], "trend_2026": "No-Code AI"}, {"uid": "658a351f-12ef-4f39-9a0c-d138610ec5ab", "base_id": "prod_39642493dee2", "title": "Template De AI SaaS: 100 En Un Click", "category": "saas-templates", "description": "⚡ ATENCIÓN: Este producto digital premium te da acceso inmediato al sistema que Startups están usando para Análisis. Sin complicaciones. Sin curva de aprendizaje. Resultados en 1 Hora.", "source_url": "", "billing": {"descriptor": "YinAITechYang SaaS Templates", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 14:56", "ecosystem": "YinAITechYang", "level": "advanced", "price": 6.99, "language": "en", "avatar_color": "white", "formats": [{"type": "video", "duration": "60min"}, {"type": "templates", "count": 25}, {"type": "guide", "pages": 40}], "version": "v2026.6", "created_at": "2026-06-25T14:56:48", "security": {"integrity_hash": "9d8e9009c214ddfffb1ba071d1b570743438aa5c119ffa3cb44df66bc1a8ef89", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["boilerplate", "startup", "saas", "starter-kit", "nextjs", "mvp", "2026", "limited", "premium", "template", "trending"], "trend_2026": "SaaS Templates"}, {"uid": "bcd4a78a-f4f1-4502-a051-3b97da1288c3", "base_id": "prod_150e4d0a5fde", "title": "MCP Server Security: 5000 Capas De Protección Incluidas", "category": "mcp-servers", "description": "🔴 URGENTE: El precio de $6.99 es solo por lanzamiento. Próxima semana sube a $49.99. Asegura tu acceso ahora.", "source_url": "", "billing": {"descriptor": "YinAITechYang MCP Servers", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 03:31", "ecosystem": "YinAITechYang", "level": "ready", "price": 6.99, "language": "es", "avatar_color": "cyan", "formats": [{"type": "video", "duration": "90min"}, {"type": "ebook", "pages": 80}, {"type": "templates", "count": 15}], "version": "v2026.6", "created_at": "2026-06-25T03:31:22", "security": {"integrity_hash": "86a4aa5b1aa472415cbbdf6abf68d74d6fb71fb1a55b80f197ed043f71b28776", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["model-context-protocol", "mcp", "instant-access", "server", "integration", "anthropic", "2026", "ai", "limited"], "trend_2026": "MCP Servers"}, {"uid": "e5797079-128e-495a-87e5-f6e299b4c7b8", "base_id": "prod_7e885e33b10e", "title": "Retrieval Augmented Generation: 3x Tráfico Garantizado", "category": "rag-systems", "description": "⏰ ALERTA: Solo quedan 10000 copias a este precio. Después sube a $49.99. Garantía de devolución 30 días o preguntas. Cero riesgo.", "source_url": "", "billing": {"descriptor": "YinAITechYang RAG Systems", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 08:03", "ecosystem": "YinAITechYang", "level": "advanced", "price": 6.99, "language": "en", "avatar_color": "pink", "formats": [{"type": "video", "duration": "60min"}, {"type": "templates", "count": 25}, {"type": "guide", "pages": 40}], "version": "v2026.6", "created_at": "2026-06-25T08:03:08", "security": {"integrity_hash": "70f2a07dc667cc1d44802d846d134650acfeb37438c82c6118eccc8fc0704e9d", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["rag", "vector-db", "retrieval", "knowledge-base", "augmented", "premium", "2026", "ai", "trending"], "trend_2026": "RAG Systems"}, {"uid": "f2231b84-630c-46f8-8d81-202e691fd6d6", "base_id": "prod_2d3d6dd16922", "title": "El Kit De AI Coding 2026: 25 Herramientas + 5000 Guías", "category": "ai-coding-assistants", "description": "🔥 Imagina despertar mañana y ver 1M De Views. No es un sueño - es lo que pasa cuando activas este sistema de IA diseñado para Travel. Únete a 25+ usuarios que ya lo lograron.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Coding Assistants", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 19:08", "ecosystem": "YinAITechYang", "level": "advanced", "price": 6.99, "language": "es", "avatar_color": "white", "formats": [{"type": "ebook", "pages": 60}, {"type": "audio", "duration": "20min"}, {"type": "video", "duration": "5min"}], "version": "v2026.6", "created_at": "2026-06-25T19:08:07", "security": {"integrity_hash": "c24837cc00ac7502677e629497d22d3d246722c9e440f995a2336c3fd7ca02a5", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["copilot", "guaranteed", "development", "coding", "assistant", "2026", "programming", "ai", "trending"], "trend_2026": "AI Coding Assistants"}, {"uid": "f93509d9-f020-4b36-9b14-d803bed5d6bd", "base_id": "prod_b8e861e5e502", "title": "El Asesor Financiero IA Que Reemplaza A Tu Freelancers", "category": "ai-finance", "description": "🔥 Imagina despertar mañana y ver 500 Leads/Día. No es un sueño - es lo que pasa cuando activas este sistema de IA diseñado para Salud. Únete a 500+ usuarios que ya lo lograron.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Finance", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 03:46", "ecosystem": "YinAITechYang", "level": "advanced", "price": 6.99, "language": "en", "avatar_color": "yellow", "formats": [{"type": "templates", "count": 50}, {"type": "video", "duration": "30min"}, {"type": "checklist", "pages": 10}], "version": "v2026.6", "created_at": "2026-06-25T03:46:12", "security": {"integrity_hash": "5198a6056a6ef786ab081bfb0c880e1198b85f32e7cd5210ca313ba850639ffa", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["finance", "fintech", "ai", "guaranteed", "budgeting", "digital", "accounting", "2026", "investment", "limited"], "trend_2026": "AI Finance"}, {"uid": "26f465d4-1788-4164-8539-5e0bbe3fced1", "base_id": "prod_fe5663f5ff59", "title": "RAG System Deployment: De Cero A Producción En 48 Horas", "category": "rag-systems", "description": "🔥 Imagina despertar mañana y ver 100% Orgánico. No es un sueño - es lo que pasa cuando activas este sistema de IA diseñado para Salud. Únete a 25+ usuarios que ya lo lograron.", "source_url": "", "billing": {"descriptor": "YinAITechYang RAG Systems", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 03:00", "ecosystem": "YinAITechYang", "level": "starter", "price": 6.99, "language": "es", "avatar_color": "purple", "formats": [{"type": "ebook", "pages": 75}, {"type": "video", "duration": "20min"}, {"type": "checklist", "pages": 5}], "version": "v2026.6", "created_at": "2026-06-25T03:00:08", "security": {"integrity_hash": "411b5e63e42e0bdcf80253315ed83a06ffb6ecd7344785cdfec047608c2e554a", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["rag", "vector-db", "retrieval", "knowledge-base", "augmented", "guaranteed", "digital", "premium", "2026", "ai"], "trend_2026": "RAG Systems"}, {"uid": "82068a8b-c503-4b0f-b7c9-c74a2e24de67", "base_id": "prod_10b2ed5bbc00", "title": "Prompts De IA Que Convierten: 100 Plantillas Para Finanzas", "category": "prompt-engineering", "description": "💎 Producto premium con acceso inmediato. Incluye 1000 plantillas, 1000 guías, y soporte prioritario. Valor real: $500+. Tu precio hoy: $6.99.", "source_url": "", "billing": {"descriptor": "YinAITechYang Prompt Engineering", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 13:36", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "en", "avatar_color": "white", "formats": [{"type": "templates", "count": 50}, {"type": "video", "duration": "30min"}, {"type": "checklist", "pages": 10}], "version": "v2026.6", "created_at": "2026-06-25T13:36:11", "security": {"integrity_hash": "992436cedddbdc0664b12cf5a7a1c2d8263bcc1bfe19bd2078fed3c96961c6b3", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["prompts", "templates", "claude", "instant-access", "prompt-engineering", "gpt-5", "ai-writing", "llm", "2026", "lifetime", "premium"], "trend_2026": "Prompt Engineering"}, {"uid": "7b6fc561-c8a7-4c2e-a07e-734cff6dd949", "base_id": "prod_386a045e1c58", "title": "Despierta Tu Negocio Con Agentes IA: 200x Más Productividad", "category": "ai-agents", "description": "🎯 Si eres Agencias y estás cansado de Presupuesto limitado, esto cambia todo. El sistema automatiza Facturación para que te enfoques en lo que realmente importa: Leads.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Agents", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 12:33", "ecosystem": "YinAITechYang", "level": "advanced", "price": 6.99, "language": "en", "avatar_color": "cyan", "formats": [{"type": "ebook", "pages": 75}, {"type": "video", "duration": "20min"}, {"type": "checklist", "pages": 5}], "version": "v2026.6", "created_at": "2026-06-25T12:33:34", "security": {"integrity_hash": "813580ab33b42b5ffbbd4a113edfdfc5967708ebade0226b1b854a4556e67f28", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["chatbot", "2026", "multi-agent", "guaranteed", "agents", "lifetime", "automation", "agent", "autonomous", "orchestration", "ai"], "trend_2026": "AI Agents"}, {"uid": "cb5a677c-8d10-487f-b335-2fec490c5a11", "base_id": "prod_35e4feadd78b", "title": "El Pipeline RAG 2026: 200 Pasos Hacia Ventas Perfecto", "category": "rag-systems", "description": "⏰ ALERTA: Solo quedan 50 copias a este precio. Después sube a $49.99. Garantía de devolución 30 días o preguntas. Cero riesgo.", "source_url": "", "billing": {"descriptor": "YinAITechYang RAG Systems", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 22:29", "ecosystem": "YinAITechYang", "level": "starter", "price": 6.99, "language": "en", "avatar_color": "green", "formats": [{"type": "ebook", "pages": 60}, {"type": "audio", "duration": "20min"}, {"type": "video", "duration": "5min"}], "version": "v2026.6", "created_at": "2026-06-25T22:29:43", "security": {"integrity_hash": "3afcefbda5f5f7fcf1a9940b84823dc8f33152a3e75e3f1615aafe4bf712674f", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["rag", "vector-db", "retrieval", "knowledge-base", "augmented", "exclusive", "digital", "2026", "ai", "limited"], "trend_2026": "RAG Systems"}, {"uid": "904a8d2c-7788-4d2d-acd7-2d5a9f921a21", "base_id": "prod_2674fb1b1cfc", "title": "El Sistema De Keywords IA: Encuentra 10 Keywords En 45 Min", "category": "ai-seo", "description": "⚡ ATENCIÓN: Este producto digital premium te da acceso inmediato al sistema que Marketers están usando para Campañas. Sin complicaciones. Sin curva de aprendizaje. Resultados en 30 Días.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI SEO", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 18:54", "ecosystem": "YinAITechYang", "level": "advanced", "price": 6.99, "language": "en", "avatar_color": "green", "formats": [{"type": "templates", "count": 50}, {"type": "video", "duration": "30min"}, {"type": "checklist", "pages": 10}], "version": "v2026.6", "created_at": "2026-06-25T18:54:21", "security": {"integrity_hash": "01877b408132fef53b85b4bb960c6d2471382a1e7499197f4ad5490c58ff7e21", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["seo", "content-optimization", "search-engine", "guaranteed", "digital", "2026", "keywords", "ai", "limited", "organic-traffic"], "trend_2026": "AI SEO"}, {"uid": "f22d1c85-1ba0-4ba9-9db1-85aa852011e9", "base_id": "prod_6308808c6056", "title": "El Bot De DeFi Que Ejecuta 10000 Estrategias Simultáneamente", "category": "defi-2.0", "description": "✨ Resultados garantizados o te devolvemos el dinero. Así de seguros estamos de que este sistema transformará tu E-Commerce en 24 Horas.", "source_url": "", "billing": {"descriptor": "YinAITechYang DeFi 2.0", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 08:49", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "es", "avatar_color": "blue", "formats": [{"type": "audio", "duration": "15min"}, {"type": "video", "duration": "1min"}, {"type": "ebook", "pages": 30}], "version": "v2026.6", "created_at": "2026-06-25T08:49:31", "security": {"integrity_hash": "b455ed593af45192024eaa092421809d9ecdfdeb83a630df544321a2f25d7b09", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["yield", "instant-access", "blockchain", "crypto", "defi", "farming", "2026", "web3", "lifetime"], "trend_2026": "DeFi 2.0"}, {"uid": "ba945f1a-47a6-4ed4-abd7-c1c082a542e0", "base_id": "prod_0b25b5922356", "title": "FinTech AI Kit: 25 Herramientas Para Conversiones", "category": "ai-finance", "description": "💡 La verdad que Startups exitosos no comparten: Conversiones es más fácil de lo que crees. Este sistema lo demuestra paso a paso.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Finance", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 13:22", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "es", "avatar_color": "gold", "formats": [{"type": "ebook", "pages": 75}, {"type": "video", "duration": "20min"}, {"type": "checklist", "pages": 5}], "version": "v2026.6", "created_at": "2026-06-25T13:22:02", "security": {"integrity_hash": "548f64cacf50df3117d6274a005d7be19e2c144ab595526f37c5bc54f436594a", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["finance", "fintech", "ai", "viral", "budgeting", "premium", "digital", "accounting", "2026", "investment"], "trend_2026": "AI Finance"}, {"uid": "bbf8b856-3985-4ae7-8341-fe9424417451", "base_id": "prod_b9cf798fde20", "title": "Agente IA De InsurTech: La Máquina De Productividad Que Funciona Mientras Duermes", "category": "ai-agents", "description": "💰 Por solo $6.99 obtienes lo que normalmente cuesta $200+. Esta oferta NO se repetirá. Acceso de por vida a Ingresos con actualizaciones 2026 incluidas.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Agents", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 01:22", "ecosystem": "YinAITechYang", "level": "advanced", "price": 6.99, "language": "en", "avatar_color": "red", "formats": [{"type": "audio", "duration": "15min"}, {"type": "video", "duration": "1min"}, {"type": "ebook", "pages": 30}], "version": "v2026.6", "created_at": "2026-06-25T01:22:06", "security": {"integrity_hash": "cabd7bb6bbe70296069dc5dd2debc9e2eb90adc757bcc0e589b0c1100330c503", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["chatbot", "2026", "exclusive", "multi-agent", "agents", "premium", "automation", "agent", "autonomous", "orchestration", "ai", "trending"], "trend_2026": "AI Agents"}, {"uid": "1533201a-40a8-47eb-965b-7b7d7e89957f", "base_id": "prod_a108e4ea533c", "title": "Yield Farming Con IA: 90% Automatización En 10 Minutos", "category": "defi-2.0", "description": "⚡ ATENCIÓN: Este producto digital premium te da acceso inmediato al sistema que Startups están usando para Leads. Sin complicaciones. Sin curva de aprendizaje. Resultados en 10 Minutos.", "source_url": "", "billing": {"descriptor": "YinAITechYang DeFi 2.0", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 06:51", "ecosystem": "YinAITechYang", "level": "ready", "price": 6.99, "language": "en", "avatar_color": "blue", "formats": [{"type": "ebook", "pages": 60}, {"type": "audio", "duration": "20min"}, {"type": "video", "duration": "5min"}], "version": "v2026.6", "created_at": "2026-06-25T06:51:42", "security": {"integrity_hash": "70d94cb1377d5105af630eefbbafe15bee86d32a3400b151d1b5a83059429b79", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["yield", "blockchain", "crypto", "digital", "defi", "farming", "2026", "web3", "premium"], "trend_2026": "DeFi 2.0"}, {"uid": "e482c05f-ec30-4ec2-ac47-8282d7d04499", "base_id": "prod_e27b4a2bd171", "title": "Agent Orchestration Templates: 25 Configuraciones", "category": "ai-agent-orchestration", "description": "⏰ ALERTA: Solo quedan 25 copias a este precio. Después sube a $49.99. Garantía de devolución 30 días o preguntas. Cero riesgo.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Agent Orchestration", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 06:40", "ecosystem": "YinAITechYang", "level": "ready", "price": 6.99, "language": "es", "avatar_color": "green", "formats": [{"type": "video", "duration": "45min"}, {"type": "ebook", "pages": 50}, {"type": "audio", "duration": "30min"}], "version": "v2026.6", "created_at": "2026-06-25T06:40:26", "security": {"integrity_hash": "73bc866c6f559ef078b1ac3614339b9d83acfe6bd58a28c7b240145cfea0c75f", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["swarm", "exclusive", "instant-access", "multi-agent", "coordination", "agents", "2026", "orchestration", "limited"], "trend_2026": "AI Agent Orchestration"}, {"uid": "724e6650-e958-4b6a-b747-07b4c6d1254c", "base_id": "prod_667d50ff404c", "title": "El Pipeline RAG 2026: 25 Pasos Hacia Contenido Perfecto", "category": "rag-systems", "description": "🎯 Si eres Agencias y estás cansado de No saber programar, esto cambia todo. El sistema automatiza Facturación para que te enfoques en lo que realmente importa: Contenido.", "source_url": "", "billing": {"descriptor": "YinAITechYang RAG Systems", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 00:57", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "en", "avatar_color": "green", "formats": [{"type": "templates", "count": 50}, {"type": "video", "duration": "30min"}, {"type": "checklist", "pages": 10}], "version": "v2026.6", "created_at": "2026-06-25T00:57:22", "security": {"integrity_hash": "743ba949fb5504b0f4de1e0cbe791c24e7f82c2cd7e8b17bf50d07367f916e78", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["rag", "vector-db", "retrieval", "knowledge-base", "augmented", "instant-access", "premium", "2026", "lifetime", "ai"], "trend_2026": "RAG Systems"}, {"uid": "d4399881-467c-4a62-98aa-db386cc5f75e", "base_id": "prod_6bf314c80f8b", "title": "AI Video Studio 2026: Crea 25 Videos Profesionales Por Día", "category": "ai-video", "description": "🔴 URGENTE: El precio de $6.99 es solo por lanzamiento. Próxima semana sube a $49.99. Asegura tu acceso ahora.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Video", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 23:57", "ecosystem": "YinAITechYang", "level": "ready", "price": 6.99, "language": "en", "avatar_color": "orange", "formats": [{"type": "ebook", "pages": 75}, {"type": "video", "duration": "20min"}, {"type": "checklist", "pages": 5}], "version": "v2026.6", "created_at": "2026-06-25T23:57:01", "security": {"integrity_hash": "0012c743da33a1e3ebcf3f7083a30653132bb357bbd825717c994e8a3692092d", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["ai-video", "sora", "content-creation", "guaranteed", "viral", "video-generation", "runway", "2026", "pika", "video-ai", "trending"], "trend_2026": "AI Video"}, {"uid": "41df14af-fc3e-4442-b598-0775a2cd2e2e", "base_id": "prod_a41268906712", "title": "AI Copywriting 2026: Escribe 100000 Veces Más Rápido Con 50% Más Conversiones", "category": "ai-copywriting", "description": "🔓 Desbloquea Seguridad con un solo clic. Este sistema de IA hace el trabajo pesado por ti mientras tú Automatización. Simple. Efectivo. Probado.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Copywriting", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 19:00", "ecosystem": "YinAITechYang", "level": "starter", "price": 6.99, "language": "en", "avatar_color": "blue", "formats": [{"type": "video", "duration": "60min"}, {"type": "templates", "count": 25}, {"type": "guide", "pages": 40}], "version": "v2026.6", "created_at": "2026-06-25T19:00:25", "security": {"integrity_hash": "81384aaaf7850d09b1ffee7022628ec36ffbe6199682614d84f308000ede8d6f", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["2026", "sales-copy", "persuasion", "copywriting", "instant-access", "premium", "digital", "cialdini", "conversion", "ai"], "trend_2026": "AI Copywriting"}, {"uid": "1b39644f-1f2d-432d-8a3c-be16dac69782", "base_id": "prod_b5d9b1302bd6", "title": "Agent Orchestration 2026: Coordina 10000 Agentes IA", "category": "ai-agent-orchestration", "description": "🚀 De Bajo a 10000 Visitas en 7 Días. Eso es lo que prometemos. Y lo cumplimos. Mira los testimonios de 50+ clientes satisfechos.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Agent Orchestration", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 23:18", "ecosystem": "YinAITechYang", "level": "advanced", "price": 6.99, "language": "en", "avatar_color": "red", "formats": [{"type": "ebook", "pages": 75}, {"type": "video", "duration": "20min"}, {"type": "checklist", "pages": 5}], "version": "v2026.6", "created_at": "2026-06-25T23:18:28", "security": {"integrity_hash": "c3073e38cd2672dcb34da65b451aedd5833954a7372c1020b3248541ec914722", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["swarm", "multi-agent", "coordination", "agents", "2026", "lifetime", "orchestration", "premium"], "trend_2026": "AI Agent Orchestration"}, {"uid": "b504cd68-914f-49db-8557-235f942e5441", "base_id": "prod_83ecfb11e74c", "title": "El Prompt Perfecto: Método Probado Para Tráfico Garantizado", "category": "prompt-engineering", "description": "🔓 Desbloquea Precisión con un solo clic. Este sistema de IA hace el trabajo pesado por ti mientras tú Ventas. Simple. Efectivo. Probado.", "source_url": "", "billing": {"descriptor": "YinAITechYang Prompt Engineering", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 09:02", "ecosystem": "YinAITechYang", "level": "starter", "price": 6.99, "language": "es", "avatar_color": "orange", "formats": [{"type": "video", "duration": "60min"}, {"type": "templates", "count": 25}, {"type": "guide", "pages": 40}], "version": "v2026.6", "created_at": "2026-06-25T09:02:07", "security": {"integrity_hash": "978f808324d13757ccb6f365a474cc057d0cf3f94da0af7ef04dc53a49ab646d", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["prompts", "templates", "claude", "instant-access", "viral", "prompt-engineering", "gpt-5", "ai-writing", "llm", "2026", "trending"], "trend_2026": "Prompt Engineering"}, {"uid": "c7174d98-6309-4385-bfd0-2f88eb93e03d", "base_id": "prod_c84349005ec5", "title": "DeFi 2.0 Analytics: Monitorea 10000 Pools En Tiempo Real", "category": "defi-2.0", "description": "🔥 Imagina despertar mañana y ver 500 Leads/Día. No es un sueño - es lo que pasa cuando activas este sistema de IA diseñado para AgTech. Únete a 500+ usuarios que ya lo lograron.", "source_url": "", "billing": {"descriptor": "YinAITechYang DeFi 2.0", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 09:55", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "es", "avatar_color": "orange", "formats": [{"type": "audio", "duration": "15min"}, {"type": "video", "duration": "1min"}, {"type": "ebook", "pages": 30}], "version": "v2026.6", "created_at": "2026-06-25T09:55:03", "security": {"integrity_hash": "d153357f3ceca3149516fa969d7a65498ca5acae086200a42d588a14e8d26998", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["yield", "viral", "blockchain", "crypto", "digital", "defi", "farming", "2026", "web3", "limited"], "trend_2026": "DeFi 2.0"}, {"uid": "bf62b6fa-68e1-43d9-9520-37fb70b78844", "base_id": "prod_88eea8fa7b78", "title": "El Framework Multimodal De Grant Cardone: 4x Engagement Garantizado", "category": "multimodal-ai", "description": "✨ Resultados garantizados o te devolvemos el dinero. Así de seguros estamos de que este sistema transformará tu Educación en 10 Minutos.", "source_url": "", "billing": {"descriptor": "YinAITechYang Multimodal AI", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 20:29", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "en", "avatar_color": "red", "formats": [{"type": "ebook", "pages": 60}, {"type": "audio", "duration": "20min"}, {"type": "video", "duration": "5min"}], "version": "v2026.6", "created_at": "2026-06-25T20:29:39", "security": {"integrity_hash": "26105a77aeb5ee96ba8ef7f14bd6f9c586ada95d8aff632f726c13956d7c41d0", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["generation", "vision", "multimodal", "text-image", "viral", "audio", "2026", "lifetime", "ai", "limited"], "trend_2026": "Multimodal AI"}, {"uid": "3b314d23-2bb1-4ab3-82b7-0e0bab99c237", "base_id": "prod_77bbd5e765c7", "title": "Automatización Inteligente: 10x Productividad Con Agentes IA En 2026", "category": "ai-automation", "description": "💰 Por solo $6.99 obtienes lo que normalmente cuesta $200+. Esta oferta NO se repetirá. Acceso de por vida a Leads con actualizaciones 2026 incluidas.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Automation", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 13:58", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "en", "avatar_color": "yellow", "formats": [{"type": "video", "duration": "45min"}, {"type": "ebook", "pages": 50}, {"type": "audio", "duration": "30min"}], "version": "v2026.6", "created_at": "2026-06-25T13:58:28", "security": {"integrity_hash": "d5bc86cae3df4ae7bfba6d3b3d5da9f1576dd3c9b28b4cea8c1ab1dbfce807e8", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["rpa", "productivity", "guaranteed", "viral", "automation", "efficiency", "workflow", "2026", "lifetime", "ai"], "trend_2026": "AI Automation"}, {"uid": "d430b2e2-0abd-420b-bc23-903b4024adee", "base_id": "prod_c6ee9795f492", "title": "El Kit De Multimodal AI 2026: 10000 Plantillas + 5000 Guías", "category": "multimodal-ai", "description": "⚡ ATENCIÓN: Este producto digital premium te da acceso inmediato al sistema que Empresas están usando para Reportes. Sin complicaciones. Sin curva de aprendizaje. Resultados en 48 Horas.", "source_url": "", "billing": {"descriptor": "YinAITechYang Multimodal AI", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 16:46", "ecosystem": "YinAITechYang", "level": "starter", "price": 6.99, "language": "en", "avatar_color": "green", "formats": [{"type": "audio", "duration": "45min"}, {"type": "ebook", "pages": 100}, {"type": "video", "duration": "10min"}], "version": "v2026.6", "created_at": "2026-06-25T16:46:54", "security": {"integrity_hash": "9267341ef8edcd9f7fe383ed6c4f90f62279847112ec73bfe73889d14d9fe917", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["generation", "vision", "multimodal", "exclusive", "text-image", "premium", "audio", "2026", "lifetime", "ai"], "trend_2026": "Multimodal AI"}, {"uid": "6fa0d7fa-ce57-49fa-83bc-fef80a2fb066", "base_id": "prod_ff53ea1dee71", "title": "Multimodal AI 2026: Texto, Imagen, Video, Audio En Un Solo Sistema", "category": "multimodal-ai", "description": "💡 La verdad que Freelancers exitosos no comparten: Conversiones es más fácil de lo que crees. Este sistema lo demuestra paso a paso.", "source_url": "", "billing": {"descriptor": "YinAITechYang Multimodal AI", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 20:28", "ecosystem": "YinAITechYang", "level": "starter", "price": 6.99, "language": "es", "avatar_color": "gold", "formats": [{"type": "video", "duration": "60min"}, {"type": "templates", "count": 25}, {"type": "guide", "pages": 40}], "version": "v2026.6", "created_at": "2026-06-25T20:28:20", "security": {"integrity_hash": "523955bc00d985211d05ef48c6c17949d5882235fb25e72bcf34f2ea69fa70eb", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["generation", "vision", "multimodal", "text-image", "audio", "2026", "lifetime", "ai", "trending"], "trend_2026": "Multimodal AI"}, {"uid": "1bba12a2-4b06-4f75-acf0-9d7a02ac745b", "base_id": "prod_aef0a4832b5d", "title": "El Framework De Agentes Que Convirtió Un Creadores En $2500", "category": "ai-agents", "description": "⚡ ATENCIÓN: Este producto digital premium te da acceso inmediato al sistema que Desarrolladores están usando para Ventas. Sin complicaciones. Sin curva de aprendizaje. Resultados en 10 Minutos.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Agents", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 13:36", "ecosystem": "YinAITechYang", "level": "superpremium", "price": 6.99, "language": "en", "avatar_color": "yellow", "formats": [{"type": "ebook", "pages": 75}, {"type": "video", "duration": "20min"}, {"type": "checklist", "pages": 5}], "version": "v2026.6", "created_at": "2026-06-25T13:36:53", "security": {"integrity_hash": "f6be27fa4f13c620436e8d5ff4feebfb359d414f0ae251279358f9e6217e9c13", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["chatbot", "2026", "multi-agent", "agents", "digital", "automation", "agent", "autonomous", "orchestration", "ai", "limited"], "trend_2026": "AI Agents"}, {"uid": "950cf2a9-ac3c-4384-8ae0-fe0ed919aec7", "base_id": "prod_920df248c526", "title": "Videos IA Para Webflow: El Sistema Que Diseñadores Usan Para 100% Orgánico", "category": "ai-video", "description": "🚀 De Lento a Alto en 7 Días. Eso es lo que prometemos. Y lo cumplimos. Mira los testimonios de 100+ clientes satisfechos.", "source_url": "", "billing": {"descriptor": "YinAITechYang AI Video", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 18:15", "ecosystem": "YinAITechYang", "level": "starter", "price": 6.99, "language": "en", "avatar_color": "yellow", "formats": [{"type": "video", "duration": "45min"}, {"type": "ebook", "pages": 50}, {"type": "audio", "duration": "30min"}], "version": "v2026.6", "created_at": "2026-06-25T18:15:43", "security": {"integrity_hash": "40db676a12ed4f5249da9f114cfeec56fa09993184ca4c4d064f075f7c9c4ce0", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": false, "mirrored": true}, "tags": ["ai-video", "sora", "content-creation", "viral", "digital", "video-generation", "runway", "2026", "pika", "video-ai"], "trend_2026": "AI Video"}, {"uid": "47d0fb09-7db3-4682-943c-87a8ba429df6", "base_id": "prod_20555abcef74", "title": "Claude Code CI/CD: Despliega En 20 Minutos Con Un Comando", "category": "claude-code-workflows", "description": "🔴 URGENTE: El precio de $6.99 es solo por lanzamiento. Próxima semana sube a $49.99. Asegura tu acceso ahora.", "source_url": "", "billing": {"descriptor": "YinAITechYang Claude Code Workflows", "unit_label": "digital-access", "tax_code": "DIGITAL"}, "original_date": "2026-06-25 17:20", "ecosystem": "YinAITechYang", "level": "ready", "price": 6.99, "language": "es", "avatar_color": "yellow", "formats": [{"type": "video", "duration": "60min"}, {"type": "templates", "count": 25}, {"type": "guide", "pages": 40}], "version": "v2026.6", "created_at": "2026-06-25T17:20:26", "security": {"integrity_hash": "268cb1d328c68a7a0f301963de7f57f8687fb620d5710d1ca8b20d82e61a2342", "watchdog": true}, "distribution": {"web": true, "mobile": true, "offline": true, "mirrored": true}, "tags": ["ai-coding", "claude", "anthropic", "development", "coding", "digital", "workflow", "2026", "trending"], "trend_2026": "Claude Code Workflows"}];
+    // ============================================================
+    // APOLLO Ω - Complete Checkout System with 5000 Products
+    // ============================================================
 
+    // State
+    let ALL_PRODUCTS = [];
+    let filteredProducts = [];
+    let displayedCount = 0;
+    const PAGE_SIZE = 48;
     let selectedPayment = null;
     let currentProduct = null;
     let currentFilter = 'all';
+    let searchQuery = '';
+    let isLoading = false;
 
     // Category display names
     const categoryNames = {
@@ -364,24 +535,95 @@
         'ai-finance': 'from-amber-500 to-yellow-500',
         'claude-code-workflows': 'from-violet-500 to-purple-500',
         'gpt-5-prompts': 'from-cyan-400 to-teal-500',
-        'mcp-servers': 'from-sky-500 to-blue-500'
+        'mcp-servers': 'from-sky-500 to-blue-500',
+        'ai-coding-assistants': 'from-violet-400 to-purple-500',
+        'ai-music-generation': 'from-pink-400 to-rose-500',
+        'ai-agent-orchestration': 'from-emerald-400 to-teal-500',
+        'langchain-automations': 'from-teal-400 to-green-500'
     };
 
-    const categoryGradients = Object.assign({}, categoryColors);
+    // Level badges
+    const levelConfig = {
+        'superpremium': { class: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', label: 'Super Premium' },
+        'advanced': { class: 'bg-purple-500/20 text-purple-400 border-purple-500/30', label: 'Avanzado' },
+        'starter': { class: 'bg-gray-500/20 text-gray-300 border-gray-500/30', label: 'Inicial' },
+        'premium': { class: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30', label: 'Premium' },
+        'expert': { class: 'bg-red-500/20 text-red-400 border-red-500/30', label: 'Experto' }
+    };
 
-    // Initialize
+    // Icons per category
+    const categoryIcons = {
+        'rag-systems': '🔍',
+        'multimodal-ai': '🧠',
+        'defi-2.0': '💰',
+        'ai-agents': '🤖',
+        'prompt-engineering': '✍️',
+        'ai-video': '🎬',
+        'crypto-trading-bots': '📈',
+        'saas-templates': '📊',
+        'no-code-ai': '🔧',
+        'ai-seo': '🚀',
+        'ai-copywriting': '📝',
+        'ai-automation': '⚡',
+        'ai-finance': '💎',
+        'claude-code-workflows': '🌀',
+        'gpt-5-prompts': '🎯',
+        'mcp-servers': '🔌',
+        'ai-coding-assistants': '💻',
+        'ai-music-generation': '🎵',
+        'ai-agent-orchestration': '🎭',
+        'langchain-automations': '⛓️'
+    };
+
+    // ============================================================
+    // Initialization
+    // ============================================================
     document.addEventListener('DOMContentLoaded', () => {
-        renderCategoryFilters();
-        renderProducts();
-        showToast('🔥 Bienvenido a APOLLO Ω - Ofertas -86% activas', 'success');
+        loadProducts();
     });
 
+    async function loadProducts() {
+        try {
+            const response = await fetch('productos_nuevos_5000.json');
+            if (!response.ok) throw new Error('Error cargando productos');
+            const data = await response.json();
+            ALL_PRODUCTS = data.products;
+            filteredProducts = [...ALL_PRODUCTS];
+            
+            document.getElementById('product-count').textContent = `${ALL_PRODUCTS.length} Productos`;
+            
+            renderCategoryFilters();
+            renderInitialProducts();
+            
+            document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('products-grid').classList.remove('hidden');
+            
+            showToast(`🔥 ${ALL_PRODUCTS.length} productos cargados - Ofertas -86% activas`, 'success');
+            
+            // Setup infinite scroll
+            setupInfiniteScroll();
+        } catch (error) {
+            console.error('Error loading products:', error);
+            document.getElementById('loading-state').innerHTML = `
+                <div class="text-center">
+                    <p class="text-red-400 mb-4">Error cargando productos: ${error.message}</p>
+                    <button onclick="loadProducts()" class="px-4 py-2 rounded-lg glassmorphism-light text-cyan-400">Reintentar</button>
+                </div>
+            `;
+            showToast('Error al cargar el catálogo', 'error');
+        }
+    }
+
+    // ============================================================
+    // Category Filters
+    // ============================================================
     function renderCategoryFilters() {
-        const categories = [...new Set(PRODUCTS.map(p => p.category))];
+        const categories = [...new Set(ALL_PRODUCTS.map(p => p.category))].sort();
         const container = document.getElementById('category-filters');
-        categories.slice(0, 10).forEach(cat => {
+        
+        categories.forEach(cat => {
             const btn = document.createElement('button');
-            btn.className = 'filter-btn px-4 py-2 rounded-full text-sm font-medium border border-gray-700 text-gray-400 hover:border-cyan-500/50 hover:text-cyan-400 transition-all';
+            btn.className = 'filter-btn px-4 py-2 rounded-full text-sm font-medium border border-gray-700 text-gray-400 hover:border-cyan-500/50 hover:text-cyan-400 transition-all whitespace-nowrap';
             btn.textContent = categoryNames[cat] || cat;
             btn.dataset.category = cat;
             btn.onclick = () => filterProducts(cat);
@@ -391,6 +633,9 @@
 
     function filterProducts(category) {
         currentFilter = category;
+        displayedCount = 0;
+        
+        // Update button styles
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.classList.remove('bg-cyan-500/20', 'text-cyan-400', 'border-cyan-500/30');
             btn.classList.add('border-gray-700', 'text-gray-400');
@@ -399,71 +644,245 @@
                 btn.classList.remove('border-gray-700', 'text-gray-400');
             }
         });
-        renderProducts();
+
+        applyFilters();
     }
 
-    function renderProducts() {
+    // ============================================================
+    // Search
+    // ============================================================
+    let searchTimeout;
+    function handleSearch(query) {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            searchQuery = query.toLowerCase().trim();
+            displayedCount = 0;
+            applyFilters();
+        }, 300);
+    }
+
+    function applyFilters() {
+        filteredProducts = ALL_PRODUCTS.filter(p => {
+            const matchesCategory = currentFilter === 'all' || p.category === currentFilter;
+            const matchesSearch = !searchQuery || 
+                p.title.toLowerCase().includes(searchQuery) ||
+                p.description.toLowerCase().includes(searchQuery) ||
+                p.category.toLowerCase().includes(searchQuery) ||
+                (p.tags && p.tags.some(t => t.toLowerCase().includes(searchQuery))) ||
+                (p.trend_2026 && p.trend_2026.toLowerCase().includes(searchQuery));
+            return matchesCategory && matchesSearch;
+        });
+
+        const stats = document.getElementById('search-stats');
+        if (searchQuery) {
+            stats.textContent = `${filteredProducts.length} encontrados`;
+        } else {
+            stats.textContent = '';
+        }
+
+        renderInitialProducts();
+    }
+
+    // ============================================================
+    // Product Rendering
+    // ============================================================
+    function renderInitialProducts() {
         const grid = document.getElementById('products-grid');
-        const filtered = currentFilter === 'all' ? PRODUCTS : PRODUCTS.filter(p => p.category === currentFilter);
+        const products = filteredProducts.slice(0, PAGE_SIZE);
+        displayedCount = products.length;
         
-        grid.innerHTML = filtered.map((product, index) => {
-            const catColor = categoryGradients[product.category] || 'from-cyan-500 to-purple-500';
-            const catName = categoryNames[product.category] || product.category;
-            const levelBadge = product.level === 'superpremium' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
-                              product.level === 'advanced' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
-                              'bg-gray-500/20 text-gray-300 border-gray-500/30';
-            
-            return `
-                <div class="card-hover glassmorphism rounded-2xl overflow-hidden" style="animation-delay: ${index * 50}ms">
-                    <div class="relative h-48 bg-gradient-to-br ${catColor} flex items-center justify-center overflow-hidden">
-                        <div class="absolute inset-0 bg-black/20"></div>
-                        <div class="relative z-10 text-center p-4">
-                            <div class="text-5xl mb-2">�</div>
-                            <span class="px-3 py-1 rounded-full text-xs font-medium bg-black/30 backdrop-blur-sm">
-                                ${catName}
-                            </span>
-                        </div>
-                        <div class="absolute top-3 right-3 discount-badge px-2 py-1 rounded-lg text-xs font-bold text-white">
-                            -86%
-                        </div>
+        grid.innerHTML = products.map((product, index) => createProductCard(product, index)).join('');
+        
+        updateSentinel();
+    }
+
+    function createProductCard(product, index) {
+        const catColor = categoryColors[product.category] || 'from-cyan-500 to-purple-500';
+        const catName = categoryNames[product.category] || product.category;
+        const catIcon = categoryIcons[product.category] || '📦';
+        const level = levelConfig[product.level] || { class: 'bg-gray-500/20 text-gray-300 border-gray-500/30', label: product.level };
+        const price = product.price || 6.99;
+        const originalPrice = (price * 7.15).toFixed(2);
+        
+        return `
+            <div class="card-hover glassmorphism rounded-2xl overflow-hidden animate-fade-in" style="animation-delay: ${Math.min(index * 30, 500)}ms">
+                <div class="relative h-44 bg-gradient-to-br ${catColor} flex items-center justify-center overflow-hidden">
+                    <div class="absolute inset-0 bg-black/20"></div>
+                    <div class="relative z-10 text-center p-4">
+                        <div class="text-5xl mb-2">${catIcon}</div>
+                        <span class="px-3 py-1 rounded-full text-xs font-medium bg-black/30 backdrop-blur-sm">
+                            ${catName}
+                        </span>
                     </div>
-                    <div class="p-5">
-                        <div class="flex items-center gap-2 mb-2">
-                            <span class="px-2 py-0.5 rounded-full text-xs border ${levelBadge}">
-                                ${product.level}
-                            </span>
-                        </div>
-                        <h3 class="font-semibold text-white mb-2 line-clamp-2 text-sm leading-tight" title="${product.title}">
-                            ${product.title}
-                        </h3>
-                        <p class="text-gray-400 text-xs mb-4 line-clamp-2">${product.description.substring(0, 80)}...</p>
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <span class="text-gray-500 line-through text-sm">$49.99</span>
-                                <span class="text-xl font-bold text-cyan-400 ml-2">$6.99</span>
-                            </div>
-                        </div>
-                        <button onclick="openCheckout('${product.uid}')" class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-medium text-sm btn-glow transition-all duration-300 hover:scale-[1.02]">
-                            Comprar Ahora
-                        </button>
+                    <div class="absolute top-3 right-3 discount-badge px-2 py-1 rounded-lg text-xs font-bold text-white">
+                        -86%
                     </div>
                 </div>
-            `;
-        }).join('');
+                <div class="p-5">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="px-2 py-0.5 rounded-full text-xs border ${level.class}">
+                            ${level.label}
+                        </span>
+                        ${product.language === 'es' ? '<span class="px-2 py-0.5 rounded-full text-xs border border-green-500/30 bg-green-500/20 text-green-400">ES</span>' : ''}
+                    </div>
+                    <h3 class="font-semibold text-white mb-2 line-clamp-2 text-sm leading-tight" title="${escapeHtml(product.title)}">
+                        ${escapeHtml(product.title)}
+                    </h3>
+                    <p class="text-gray-400 text-xs mb-4 line-clamp-2">${escapeHtml(product.description.substring(0, 100))}...</p>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-gray-500 line-through text-sm">$${originalPrice}</span>
+                            <span class="text-xl font-bold text-cyan-400 ml-2">$${price}</span>
+                        </div>
+                    </div>
+                    <button onclick="openCheckout('${product.uid}')" class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-medium text-sm btn-glow transition-all duration-300 hover:scale-[1.02]">
+                        Comprar Ahora
+                    </button>
+                </div>
+            </div>
+        `;
     }
 
+    function loadMore() {
+        if (isLoading || displayedCount >= filteredProducts.length) return;
+        isLoading = true;
+        
+        const grid = document.getElementById('products-grid');
+        const fragment = document.createDocumentFragment();
+        const tempDiv = document.createElement('div');
+        
+        const nextBatch = filteredProducts.slice(displayedCount, displayedCount + PAGE_SIZE);
+        
+        nextBatch.forEach((product, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = createProductCard(product, displayedCount + index);
+            if (wrapper.firstElementChild) {
+                fragment.appendChild(wrapper.firstElementChild);
+            }
+        });
+        
+        grid.appendChild(fragment);
+        displayedCount += nextBatch.length;
+        isLoading = false;
+        
+        updateSentinel();
+    }
+
+    function updateSentinel() {
+        const sentinel = document.getElementById('scroll-sentinel');
+        if (displayedCount < filteredProducts.length) {
+            sentinel.classList.remove('hidden');
+        } else {
+            sentinel.classList.add('hidden');
+        }
+    }
+
+    // ============================================================
+    // Infinite Scroll
+    // ============================================================
+    function setupInfiniteScroll() {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && !isLoading && displayedCount < filteredProducts.length) {
+                    loadMore();
+                }
+            });
+        }, { rootMargin: '200px' });
+
+        // Create a sentinel element
+        let sentinel = document.getElementById('scroll-sentinel');
+        if (!sentinel) {
+            sentinel = document.createElement('div');
+            sentinel.id = 'scroll-sentinel';
+            sentinel.className = 'h-4';
+            document.getElementById('products-grid').after(sentinel);
+        }
+        observer.observe(sentinel);
+    }
+
+    // ============================================================
+    // Checkout System (Real External Links)
+    // ============================================================
+    
+    const PAYMENT_GATEWAYS_URLS = {
+        vitawallet: (product) => {
+            const price = product.price || 6.99;
+            const orderRef = 'AP-' + product.uid;
+            return `https://www.vitawallet.com/checkout?amount=${price}&currency=USD&product=${encodeURIComponent(product.title)}&reference=${orderRef}&merchant_id=APOLLO`;
+        },
+        binance: (product) => {
+            const price = product.price || 6.99;
+            return `https://pay.binance.com/en/checkout/${price}?product=${encodeURIComponent(product.title)}&ref=APOLLO&type=crypto`;
+        },
+        wallbit: (product) => {
+            const price = product.price || 6.99;
+            const orderRef = 'AP-' + product.uid;
+            return `https://wallbit.com/pay?amount=${price}&currency=USD&product=${encodeURIComponent(product.title)}&merchant=APOLLO&reference=${orderRef}`;
+        },
+        sepa: null, // Opens inline modal
+        crypto: null, // Opens inline modal  
+        bolivia: null // Opens inline modal
+    };
+
     function openCheckout(uid) {
-        currentProduct = PRODUCTS.find(p => p.uid === uid);
+        currentProduct = ALL_PRODUCTS.find(p => p.uid === uid);
         if (!currentProduct) return;
         
+        const price = currentProduct.price || 6.99;
+        const originalPrice = (price * 7.15).toFixed(2);
+        const orderRef = 'AP-' + currentProduct.uid;
+        
         document.getElementById('modal-product-title').textContent = currentProduct.title;
+        document.getElementById('modal-product-category').textContent = categoryNames[currentProduct.category] || currentProduct.category;
+        document.getElementById('modal-product-uid').textContent = `ID: ${currentProduct.uid} | Ref: ${orderRef}`;
+        document.getElementById('modal-original-price').textContent = `$${originalPrice}`;
+        document.getElementById('modal-price').textContent = `$${price}`;
+        document.getElementById('sepa-reference').textContent = orderRef;
+        
+        // Set up Vitawallet link
+        const vitawalletUrl = PAYMENT_GATEWAYS_URLS.vitawallet(currentProduct);
+        document.getElementById('pay-vitawallet').href = vitawalletUrl;
+        
+        // Set up Binance link
+        const binanceUrl = PAYMENT_GATEWAYS_URLS.binance(currentProduct);
+        document.getElementById('pay-binance').href = binanceUrl;
+        
+        // Set up Wallbit link
+        const wallbitUrl = PAYMENT_GATEWAYS_URLS.wallbit(currentProduct);
+        document.getElementById('pay-wallbit').href = wallbitUrl;
+        
+        // Set up SEPA online button
+        const onlinePrice = (price * 0.93).toFixed(2); // EUR equivalent
+        const sepaOnlineUrl = `https://www.vitawallet.com/checkout?amount=${onlinePrice}&currency=EUR&product=${encodeURIComponent(currentProduct.title)}&reference=${orderRef}&merchant_id=APOLLO`;
+        document.getElementById('pay-sepa-online').href = sepaOnlineUrl;
+        
+        // Set up Bolivia online button
+        const BOBPrice = (price * 6.91).toFixed(2);
+        const boliviaOnlineUrl = `https://www.vitawallet.com/checkout?amount=${BOBPrice}&currency=BOB&product=${encodeURIComponent(currentProduct.title)}&reference=${orderRef}&merchant_id=APOLLO`;
+        document.getElementById('pay-bolivia-online').href = boliviaOnlineUrl;
+        
+        // Set up crypto Binance links
+        const cryptoBtcUrl = `https://pay.binance.com/en/checkout/${price}?product=${encodeURIComponent(currentProduct.title)}&crypto=BTC&address=bc1qjjgsx3lwa0wz59l89htcpr28j5s7dtmv99fmw0&ref=APOLLO&type=crypto`;
+        const cryptoEthUrl = `https://pay.binance.com/en/checkout/${price}?product=${encodeURIComponent(currentProduct.title)}&crypto=ETH&address=0x2F4bc6f77719AB99BCd6a9b553729bB96C9B8c22&ref=APOLLO&type=crypto`;
+        const cryptoUsdtUrl = `https://pay.binance.com/en/checkout/${price}?product=${encodeURIComponent(currentProduct.title)}&crypto=USDT&address=0xeBe965EFe1ab53d2da915134d72e5BdBd5E3C053&ref=APOLLO&type=crypto`;
+        
+        const cryptoDetails = document.getElementById('details-crypto');
+        if (cryptoDetails) {
+            const links = cryptoDetails.querySelectorAll('a[href*="pay.binance"]');
+            if (links.length >= 3) {
+                links[0].href = cryptoBtcUrl;
+                links[1].href = cryptoEthUrl;
+                links[2].href = cryptoUsdtUrl;
+            }
+        }
+        
         document.getElementById('checkout-modal').classList.remove('hidden');
         document.getElementById('checkout-modal').classList.add('flex');
         document.body.style.overflow = 'hidden';
         
-        selectedPayment = null;
-        document.querySelectorAll('.payment-option').forEach(el => el.classList.remove('selected'));
-        document.getElementById('confirm-btn').disabled = true;
+        // Reset inline details visibility
+        document.getElementById('payment-details').classList.add('hidden');
+        document.querySelectorAll('[id^="details-"]').forEach(el => el.classList.add('hidden'));
     }
 
     function closeCheckout() {
@@ -476,33 +895,45 @@
         document.querySelectorAll('.payment-option').forEach(opt => opt.classList.remove('selected'));
         el.classList.add('selected');
         selectedPayment = el.dataset.method;
-        document.getElementById('confirm-btn').disabled = false;
+        
+        // Show relevant payment details
+        const detailsDiv = document.getElementById('payment-details');
+        detailsDiv.classList.remove('hidden');
+        document.querySelectorAll('[id^="details-"]').forEach(d => d.classList.add('hidden'));
+        
+        const detailId = `details-${selectedPayment}`;
+        const detailEl = document.getElementById(detailId);
+        if (detailEl) {
+            detailEl.classList.remove('hidden');
+        }
+        
+        if (selectedPayment === 'crypto') {
+            showToast('Selecciona la moneda y copia la wallet, o paga vía Binance Pay', 'info');
+        }
     }
 
     function confirmPurchase() {
         if (!selectedPayment || !currentProduct) return;
         
-        const methodNames = {
-            'vitawallet': 'Vitawallet',
-            'binance': 'Binance',
-            'wallbit': 'Wallbit',
-            'coinbase': 'Coinbase',
-            'openpayd': 'OpenPayd',
-            'leadbank': 'Lead Bank',
-            'bolivia': 'Bolivia - Transferencia'
-        };
+        const urls = PAYMENT_GATEWAYS_URLS;
         
-        document.getElementById('confirm-btn').innerHTML = '<span class="animate-pulse">Procesando...</span>';
+        if (urls[selectedPayment]) {
+            // External gateway - open in new tab
+            const url = urls[selectedPayment](currentProduct);
+            const win = window.open(url, '_blank', 'noopener,noreferrer');
+            if (win) {
+                showToast(`Abriendo ${selectedPayment}... Se abrirá una nueva pestaña.`, 'success');
+            }
+        } else {
+            showToast('Usa los datos mostrados para realizar tu pago.', 'info');
+        }
         
-        setTimeout(() => {
-            closeCheckout();
-            showToast(`✅ Compra exitosa! Acceso a "${currentProduct.title.substring(0, 30)}..." desbloqueado vía ${methodNames[selectedPayment]}`, 'success');
-            document.getElementById('confirm-btn').innerHTML = 'Pagar $6.99 Ahora';
-            currentProduct = null;
-            selectedPayment = null;
-        }, 2000);
+        // Don't close modal - user can see details
     }
 
+    // ============================================================
+    // Toast Notifications
+    // ============================================================
     function showToast(message, type = 'info') {
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
@@ -535,6 +966,52 @@
             toast.style.transition = 'all 0.3s ease';
             setTimeout(() => toast.remove(), 300);
         }, 4000);
+    }
+
+    // ============================================================
+    // Utilities
+    // ============================================================
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function copyToClipboard(text, btn) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('¡Copiado al portapapeles!', 'success');
+                if (btn) {
+                    const original = btn.textContent;
+                    btn.textContent = '✅';
+                    setTimeout(() => btn.textContent = original, 1500);
+                }
+            }).catch(() => {
+                fallbackCopy(text, btn);
+            });
+        } else {
+            fallbackCopy(text, btn);
+        }
+    }
+
+    function fallbackCopy(text, btn) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            showToast('¡Copiado!', 'success');
+            if (btn) {
+                btn.textContent = '✅';
+                setTimeout(() => btn.textContent = '📋', 1500);
+            }
+        } catch(e) {
+            showToast('Error al copiar', 'error');
+        }
+        document.body.removeChild(textarea);
     }
 
     function scrollToProducts() {
